@@ -1,0 +1,744 @@
+
+       IDENTIFICATION DIVISION.
+      *-----------------------
+       PROGRAM-ID. IMSDSQL.
+      *
+       ENVIRONMENT DIVISION.
+      *--------------------
+       CONFIGURATION SECTION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+
+           SELECT FD-PRINT-FILE ASSIGN UT-S-SYSPRINT
+               FILE STATUS IS W100-FILE-STATUS.
+      *
+       DATA DIVISION.
+      *-------------
+       FILE SECTION.
+
+       FD  FD-PRINT-FILE
+           RECORDING MODE F
+           LABEL RECORDS STANDARD
+           BLOCK CONTAINS 0.
+
+       01  FD-PRINT-REC.
+           03   FD-PRINT-CC         PIC X.
+           03   FD-PRINT-LINE       PIC X(132).
+
+      *
+      /
+       WORKING-STORAGE SECTION.
+      *
+      *****************************************************
+      * STRUCTURE FOR INPUT *
+      *****************************************************
+       01  W100-GENERAL-STORAGE.
+           03  W100-REM                PIC S9(4) COMP VALUE +0.
+           03  W100-DUMMY              PIC S9(4) COMP VALUE +0.
+           03  W100-COLUMN-IND         PIC S9(4) COMP VALUE +0.
+           03  W100-SQLCODE            PIC -9(4).
+           03  W100-ROWS-ALTERED       PIC -9(8).
+           03 W100-PAGE-NO-LINE.
+               05 FILLER                PIC X(5) VALUE 'PAGE '.
+               05 W100-PAGE-NUM         PIC Z(7)9.
+           03  W100-HDRS-NEEDED        PIC X VALUE 'Y'.
+               88 HDRS-NEEDED          VALUE 'Y'.
+           03  W100-FIRST-FETCH        PIC X VALUE 'Y'.
+               88 FIRST-FETCH          VALUE 'Y'.
+           03  W100-COL-TYPE           PIC S9(4) COMP VALUE +0.
+               88 COLS-WITH-LENGTHS    VALUES +448 +449
+                                              +452 +453
+                                              +456 +457
+                                              +464 +465
+                                              +468 +469.
+               88 COLS-VARIABLE        VALUES +448 +449
+                                              +456 +457
+                                              +464 +465.
+               88 COLTYPE-DATE         VALUES +384 +385.
+               88 COLTYPE-TIME         VALUES +388 +389.
+               88 COLTYPE-TSTMP        VALUES +392 +393.
+               88 COLTYPE-VARCHAR      VALUES +448 +449.
+               88 COLTYPE-CHAR         VALUES +452 +453.
+               88 COLTYPE-VARL         VALUES +456 +457.
+               88 COLTYPE-VARG         VALUES +464 +465.
+               88 COLTYPE-GRA          VALUES +468 +469.
+               88 COLTYPE-LVAR         VALUES +472 +473.
+               88 COLTYPE-FLOAT        VALUES +480 +481.
+               88 COLTYPE-DECIMAL      VALUES +484 +485.
+               88 COLTYPE-INT          VALUES +496 +497.
+               88 COLTYPE-SMALLINT     VALUES +500 +501.
+           03  W100-FILE-STATUS.
+               05  W100-FILE-STATUS-1  PIC X.
+               05  W100-FILE-STATUS-2  PIC X.
+           03  W100-RECPTR POINTER.
+           03  W100-ADDR REDEFINES W100-RECPTR  PIC S9(9) COMP.
+           03  W100-COL-LEN            PIC S9(5) COMP-3 VALUE +0.
+           03  W100-SUB                PIC S9(4) COMP.
+           03  W100-SUB2               PIC S9(4) COMP.
+           03  W100-PSUB               PIC S9(4) COMP.
+           03  W100-PREV-PSUB          PIC S9(4) COMP VALUE 0.
+           03  W100-SUB-1              PIC S9(4) COMP.
+           03  W100-ST-SUB             PIC S9(4) COMP.
+           03  W100-LENGTH             PIC S9(4) COMP.
+           03  W100-DSTART             PIC S9(4) COMP.
+           03  W100-FLEN               PIC S9(4) COMP.
+           03  W100-FLENR REDEFINES W100-FLEN   PIC XX.
+           03  W100-MIDDLE             PIC S9(3) COMP-3.
+           03  W100-TEMP               PIC S9(3) COMP-3.
+           03  W100-START              PIC S9(3) COMP-3.
+           03  W100-ROWNUM             PIC S9(6) COMP-3 VALUE +0.
+           03  W100-ROWNUM-DISPLAY     PIC Z(5)9.
+           03  W100-LINE-NO              PIC S9(8) COMP.
+
+       01  W110-DATA-MOVES.
+           03  FILLER                 PIC X(8) VALUE 'W110'.
+           03  W110-DEC-PLACES.
+               05  FILLER             PIC X VALUE LOW-VALUE.
+               05  W110-DEC-PL1       PIC X.
+           03  W110-DEC-PLACESR REDEFINES W110-DEC-PLACES
+                                      PIC S9(4) COMP.
+           03  W110-DEC-LENGTH        PIC S9(4) COMP.
+           03  W110-DEC-PLACES2       PIC S9(4) COMP.
+           03  W110-INT-MOVE          PIC X(4).
+           03  W110-INTEGER REDEFINES W110-INT-MOVE
+                                      PIC S9(9) COMP.
+           03  W110-INT               PIC -Z(7)9.
+           03  W110-INT-DISPLAY       PIC X(9) JUSTIFIED RIGHT.
+           03  W110-INT-UNL           PIC -9(10).
+           03  W110-INT-TOT           PIC -Z(10)9.
+           03  W110-SFLOAT-MOVE       PIC X(4).
+           03  W110-SFLOAT REDEFINES W110-SFLOAT-MOVE COMP-1.
+           03  W110-SFLOAT-DISPLAY   PIC +.9(8)E+99.
+           03  W110-SFLOAT-DISP REDEFINES W110-SFLOAT-DISPLAY PIC X(14).
+           03  W110-DFLOAT-MOVE      PIC X(8).
+           03  W110-DFLOAT REDEFINES W110-DFLOAT-MOVE COMP-2.
+           03  W110-DFLOAT-DISPLAY   PIC +.9(16)E+99.
+           03  W110-DFLOAT-DISP REDEFINES W110-DFLOAT-DISPLAY PIC X(22).
+           03  W110-FLOAT-TOT        PIC +.9(16)E+99.
+           03  W110-FLOAT-T REDEFINES W110-FLOAT-TOT PIC X(22).
+           03  W110-DEC              PIC Z(14)9.
+           03  W110-DEC-TOT          PIC Z(16)9.
+           03  W110-SMALLINT-MOVE    PIC X(2).
+           03  W110-SMALLINT REDEFINES W110-SMALLINT-MOVE
+                                     PIC S9(4) COMP.
+           03  W110-SINT             PIC -Z(4)9.
+           03  W110-SINT-DISPLAY     PIC X(5) JUSTIFIED RIGHT.
+           03  W110-SINT-TOT         PIC -Z(6)9.
+           03  W110-DECIMAL-MOVE     PIC X(8) JUSTIFIED RIGHT.
+           03  W110-DECIMAL REDEFINES W110-DECIMAL-MOVE
+                                     PIC S9(15) COMP-3.
+           03  W110-NULL             PIC S9(4) COMP VALUE 0.
+           03  W110-NULL-MOVE REDEFINES W110-NULL PIC XX.
+           03  W110-CHAR-TOT         PIC 9(9).
+           03  W110-CHAR-TOTM REDEFINES W110-CHAR-TOT PIC X(9).
+           03  W110-DECIMAL-DISP     PIC 9(15).
+
+       01  W150-ERR-LEN              PIC S9(8) COMP VALUE +72.
+       01  W150-ERROR-MESSAGE.
+           03  W150-ERR-MSG-1        PIC X(72).
+           03  W150-ERR-MSG-2        PIC X(72).
+           03  W150-ERR-MSG-3        PIC X(72).
+           03  W150-ERR-MSG-4        PIC X(72).
+
+
+       01  W200-PRINT-POS.
+           03  W200-PRINT-POSITIONS   OCCURS 750 DEPENDING ON SQLN.
+               05  W200-PAGE-NO       PIC S9(8) COMP.
+               05  W200-DATA-START    PIC S9(3) COMP-3.
+               05  W200-DATA-LENGTH   PIC S9(3) COMP-3.
+               05  W200-OUT-LENGTH    PIC S9(3) COMP-3.
+               05  W200-HDR-START     PIC S9(3) COMP-3.
+
+       01  W300-PRINT-BUFFER.
+           03  W300-NUM-PAGES     PIC S9(3) COMP-3.
+           03  W300-PAGES         OCCURS 750 DEPENDING ON
+                                  W300-NUM-PAGES.
+               05 W300-LINE       PIC X(132) OCCURS 60.
+      *
+      *****************************************************
+      * VARIABLES FOR ERROR-MESSAGE FORMATTING *
+      *****************************************************
+       01  ERROR-MESSAGE.
+           02 ERROR-LEN PIC S9(4) COMP VALUE +960.
+           02 ERROR-TEXT PIC X(120) OCCURS 8 TIMES
+              INDEXED BY ERROR-INDEX.
+       77  ERROR-TEXT-LEN           PIC S9(8) COMP VALUE +120.
+      *
+      *****************************************************
+      * SQL INCLUDE FOR SQLCA *
+      *****************************************************
+           EXEC SQLIMS INCLUDE SQLCA END-EXEC.
+      *****************************************************
+      * SQL DESCRIPTOR AREA *
+      *****************************************************
+           EXEC SQLIMS INCLUDE SQLDA END-EXEC.
+      *****************************************************
+      * DECLARE CURSOR AND STATEMENT FOR DYNAMIC SQL
+      *****************************************************
+      *
+           EXEC SQLIMS
+               DECLARE DYNAM_SQL STATEMENT
+           END-EXEC.
+
+           EXEC SQLIMS                                                  04080000
+               DECLARE DYNAM_CURSOR CURSOR FOR DYNAM_SQL                04090000
+           END-EXEC.                                                    04100000
+      *
+       LINKAGE SECTION.
+
+       01  L100-SQL-OUTPUT.
+           03 L100-PAGE-NO              PIC S9(8) COMP.
+           03 L100-LENGTH               PIC S9(4) COMP.
+           03 L100-SQL-TEXT.
+              05 L100-SQL-CHAR          PIC X(1) OCCURS 32700
+                                        DEPENDING ON L100-LENGTH.
+       01  L200-SQL-INPUT.
+           49 L200-LENGTH               PIC S9(4) COMP.
+           49 L200-SQL-TEXT             PIC X(32700).
+      /
+       PROCEDURE DIVISION USING L100-SQL-OUTPUT
+                                L200-SQL-INPUT.
+      *
+
+       A000-MAINLINE SECTION.
+      *****************************************************
+      * MAIN PROGRAM ROUTINE *
+      *****************************************************
+           OPEN EXTEND FD-PRINT-FILE.
+           PERFORM VARYING W100-SUB FROM 1 BY 1
+           UNTIL L200-SQL-TEXT (W100-SUB:1) NOT = SPACE
+           OR W100-SUB > L200-LENGTH
+           END-PERFORM.
+           MOVE 'SQLDA' TO SQLDAID.
+           MOVE 33016 TO SQLDABC.
+           MOVE 750 TO SQLN.
+           EXEC SQLIMS
+              PREPARE DYNAM_SQL INTO :SQLDA
+                      FROM :L200-SQL-INPUT
+           END-EXEC.
+             IF SQLCODE < 0
+                DISPLAY 'SQL LENGTH ' L200-LENGTH
+                DISPLAY 'SQL INPUT ' L200-SQL-TEXT (1:L200-LENGTH)
+                MOVE SQLCODE TO W100-SQLCODE
+                DISPLAY 'SQL CODE ' W100-SQLCODE
+                DISPLAY 'PREPARE ERROR'
+                PERFORM Z999-ERROR
+                GO TO A000-EXIT
+             END-IF
+           IF SQLCODE > 0
+              DISPLAY 'WARNING SQLCODE ' SQLCODE
+           END-IF.
+           MOVE SQLD TO SQLN.
+           SET W100-RECPTR TO ADDRESS OF L100-SQL-TEXT.
+           IF L200-SQL-TEXT (W100-SUB:6) = 'SELECT'
+              PERFORM B000-PROCESS-SELECT
+           ELSE
+              EXEC SQLIMS
+                 EXECUTE DYNAM_SQL USING DESCRIPTOR :SQLDA
+              END-EXEC
+             IF SQLCODE < 0
+                DISPLAY 'SQL LENGTH ' L200-LENGTH
+                DISPLAY 'SQL INPUT ' L200-SQL-TEXT (1:L200-LENGTH)
+                MOVE SQLCODE TO W100-SQLCODE
+                DISPLAY 'SQL CODE ' W100-SQLCODE
+                DISPLAY 'EXECUTE ERROR'
+                PERFORM Z999-ERROR
+                GO TO A000-EXIT
+             ELSE
+                MOVE SQLERRD (3) TO W100-ROWS-ALTERED
+                DISPLAY '*** ROWS AFFECTED IS ' W100-ROWS-ALTERED
+             END-IF
+           END-IF.
+      *
+       A000-EXIT.
+           GOBACK.
+           EXIT.
+           EJECT
+
+
+       B000-PROCESS-SELECT SECTION.
+
+      *******************************************************************
+      ** THIS SECTION WILL PROCESS THE SELECT STATEMENT             *****
+      *******************************************************************
+
+           MOVE 1 TO W100-SUB
+                     W200-PAGE-NO (1).
+           MOVE 0 TO L100-LENGTH.
+           MOVE 0 TO W300-NUM-PAGES.
+           PERFORM C000-SET-COL-ADDRS SQLD TIMES.
+           MOVE 0 TO W100-LINE-NO.
+           PERFORM D000-FORMAT-HDRS
+              VARYING W100-SUB FROM 1 BY 1
+              UNTIL W100-SUB > SQLD
+           MOVE W200-PAGE-NO (SQLD) TO W300-NUM-PAGES.
+           EXEC SQLIMS
+             OPEN DYNAM_CURSOR
+           END-EXEC
+
+           IF SQLCODE < 0
+              DISPLAY 'OPEN ERROR'
+              PERFORM Z999-ERROR
+              GO TO B000-EXIT
+           END-IF.
+
+           PERFORM Z500-FETCH
+
+           MOVE 0 TO W100-ROWNUM.
+           MOVE 4 TO W100-LINE-NO
+           PERFORM E000-PROCESS-ROWS                                    11562000
+              UNTIL SQLCODE = 100 OR SQLCODE < 0.                       11563000
+
+
+           EXEC SQLIMS
+              CLOSE DYNAM_CURSOR
+           END-EXEC.
+
+           IF SQLCODE < 0
+              PERFORM Z999-ERROR
+              GO TO B000-EXIT
+           END-IF.
+
+       B000-EXIT.
+           GOBACK.
+           EXIT.
+           EJECT
+
+
+       C000-SET-COL-ADDRS SECTION.
+
+      *******************************************************************
+      ** THIS SECTION WILL SET THE ADDRESS OF EACH COLUMN           *****
+      *******************************************************************
+
+           SET SQLDATA (W100-SUB) TO W100-RECPTR.
+           MOVE SQLLEN (W100-SUB) TO W200-DATA-LENGTH (W100-SUB)
+                                     W200-OUT-LENGTH (W100-SUB).
+           MOVE SQLTYPE (W100-SUB) TO W100-COL-TYPE.
+           IF COLTYPE-VARCHAR OR COLTYPE-VARL
+              ADD 2 TO W200-DATA-LENGTH (W100-SUB)
+           ELSE
+           IF COLTYPE-GRA
+              MULTIPLY W200-DATA-LENGTH (W100-SUB) BY 2
+              GIVING W200-DATA-LENGTH (W100-SUB)
+              MOVE W200-DATA-LENGTH (W100-SUB)
+                TO W200-OUT-LENGTH (W100-SUB)
+           ELSE
+           IF COLTYPE-VARG OR COLTYPE-LVAR
+              MULTIPLY W200-DATA-LENGTH (W100-SUB) BY 2
+              GIVING W200-DATA-LENGTH (W100-SUB)
+              MOVE W200-DATA-LENGTH (W100-SUB)
+                TO W200-OUT-LENGTH (W100-SUB)
+              ADD 2 TO W200-DATA-LENGTH (W100-SUB)
+           ELSE
+           IF COLTYPE-FLOAT
+              IF SQLLEN (W100-SUB) = 4
+                 MOVE 14 TO W200-OUT-LENGTH (W100-SUB)
+              ELSE
+                 MOVE 22 TO W200-OUT-LENGTH (W100-SUB)
+              END-IF
+           ELSE
+           IF COLTYPE-INT
+              MOVE 9 TO W200-OUT-LENGTH (W100-SUB)
+           ELSE
+           IF COLTYPE-SMALLINT
+              MOVE 6 TO W200-OUT-LENGTH (W100-SUB)
+           ELSE
+           IF COLTYPE-DECIMAL
+              DIVIDE W100-COL-LEN BY 256
+                  GIVING W100-COL-LEN REMAINDER W100-REM
+              ADD 1 TO W100-COL-LEN
+              MOVE W100-COL-LEN TO W200-OUT-LENGTH (W100-SUB)
+              DIVIDE W100-COL-LEN BY 2
+                 GIVING W100-COL-LEN REMAINDER W100-REM
+              IF W100-REM > 0
+                 ADD 1 TO W100-COL-LEN
+              END-IF
+              IF W100-COL-LEN > 120
+                 MOVE 120 TO W100-COL-LEN
+              END-IF
+           END-IF.
+           MOVE W200-DATA-LENGTH (W100-SUB) TO W100-COL-LEN.
+
+
+      *******************************************************************
+      ** IF THE COLUMN CAN BE NULL THE ALLOW AN EXTRA 2 BYTES        ****
+      *******************************************************************
+
+
+           DIVIDE SQLTYPE (W100-SUB) BY 2
+                GIVING W100-DUMMY REMAINDER W100-COLUMN-IND.
+           IF W100-COLUMN-IND > 0
+              SET SQLIND (W100-SUB) TO W100-RECPTR
+              ADD 2 TO W100-ADDR
+                       L100-LENGTH
+              SET SQLDATA (W100-SUB) TO W100-RECPTR
+           END-IF.
+           IF SQLNAMEL (W100-SUB) = 0
+              MOVE 5 TO SQLNAMEL (W100-SUB)
+              MOVE 'VALUE' TO SQLNAMEC (W100-SUB)
+           END-IF.
+
+      ***********************************************************
+      * NOW SET STARTING POSITIONS AND PAGE POSITIONS IN PRINT **
+      * BUFFER.                                                **
+      ***********************************************************
+           IF W200-OUT-LENGTH (W100-SUB) > 120
+              MOVE 120 TO W200-OUT-LENGTH (W100-SUB)
+           END-IF.
+           IF W100-SUB = 1
+              MOVE 120 TO W100-TEMP
+              MOVE 1 TO W300-NUM-PAGES
+           ELSE
+              SUBTRACT 1 FROM W100-SUB
+                 GIVING W100-SUB-1
+              ADD W200-OUT-LENGTH (W100-SUB-1)
+                 TO W200-OUT-LENGTH (W100-SUB)
+                 GIVING W100-TEMP
+              ADD 8 TO W100-TEMP
+           END-IF
+           IF W100-TEMP > 119
+              MOVE 10 TO W200-DATA-START (W100-SUB)
+              IF W100-SUB = 1
+                 MOVE 1 TO W300-NUM-PAGES
+              ELSE
+                 ADD 1 TO W300-NUM-PAGES
+           ELSE
+              ADD W200-DATA-START (W100-SUB-1)
+                 TO W200-OUT-LENGTH (W100-SUB-1)
+                 GIVING W200-DATA-START (W100-SUB)
+              ADD 6 TO W200-DATA-START (W100-SUB)
+              IF W200-DATA-START (W100-SUB) > 120
+                 MOVE 10 TO W200-DATA-START (W100-SUB)
+                 ADD 1 TO W300-NUM-PAGES
+              END-IF
+              ADD W200-OUT-LENGTH (W100-SUB)
+                 TO W200-DATA-START (W100-SUB)
+                 GIVING W100-TEMP
+              IF W100-TEMP > 120
+                 ADD 1 TO W300-NUM-PAGES
+                 MOVE 10 TO W200-DATA-START (W100-SUB)
+              END-IF
+           END-IF.
+           MOVE W300-NUM-PAGES TO W200-PAGE-NO (W100-SUB).
+           IF SQLNAMEL (W100-SUB) > W200-OUT-LENGTH (W100-SUB)
+              MOVE SQLNAMEL (W100-SUB) TO W200-OUT-LENGTH (W100-SUB)
+              MOVE W200-DATA-START (W100-SUB)
+                 TO W200-HDR-START (W100-SUB)
+           ELSE
+              DIVIDE W200-OUT-LENGTH (W100-SUB) BY 2
+                 GIVING W100-MIDDLE
+              ADD W200-DATA-START (W100-SUB) TO W100-MIDDLE
+              DIVIDE SQLNAMEL (W100-SUB) BY 2
+                 GIVING W100-TEMP
+              SUBTRACT W100-TEMP FROM W100-MIDDLE
+                 GIVING W200-HDR-START (W100-SUB)
+           END-IF.
+           ADD W100-COL-LEN TO W100-ADDR
+                               L100-LENGTH.
+           ADD 1 TO W100-SUB.
+
+       C000-EXIT.
+           EXIT.
+           EJECT
+       D000-FORMAT-HDRS SECTION.
+
+      ******************************************************************;
+      * THIS SECTION WILL FORMAT THE HEADERS AND TRAILERS.
+      * W100-SUB IS THE SUBSCRIPT USED TO REFERENCE THE COLUMN DETAILS
+      * AND W100-PSUB IS USED TO REFERENCE THE PAGE NUMBER.
+      ******************************************************************,
+           MOVE W200-PAGE-NO (W100-SUB) TO W100-PSUB.
+           IF W100-PSUB > W100-PREV-PSUB
+              ADD 1 TO L100-PAGE-NO
+              MOVE L100-PAGE-NO TO W100-PAGE-NUM
+              MOVE W100-PAGE-NO-LINE
+                 TO W300-LINE (W100-PSUB 1)
+              MOVE SPACES TO W300-LINE (W100-PSUB 2)
+                             W300-LINE (W100-PSUB 3)
+                             W300-LINE (W100-PSUB 4)
+                             W300-LINE (W100-PSUB 60)
+              MOVE 5 TO W100-LINE-NO
+           END-IF.
+           SUBTRACT 2 FROM W200-DATA-START (W100-SUB)
+              GIVING W100-START.
+           MOVE '+' TO W300-LINE (W100-PSUB 2) (W100-START : 1)
+                       W300-LINE (W100-PSUB 4) (W100-START : 1)
+                       W300-LINE (W100-PSUB 60) (W100-START : 1).
+           MOVE '|' TO W300-LINE (W100-PSUB 3) (W100-START : 1).
+           ADD 1 TO W100-START.
+           MOVE W200-OUT-LENGTH (W100-SUB) TO W100-LENGTH.
+           ADD 2 TO W100-LENGTH.
+           MOVE ALL '-' TO W300-LINE (W100-PSUB 2)
+                                     (W100-START :W100-LENGTH).
+           MOVE ALL '-' TO W300-LINE (W100-PSUB 4)
+                                     (W100-START :W100-LENGTH).
+           MOVE ALL '-' TO W300-LINE (W100-PSUB 60)
+                                     (W100-START :W100-LENGTH).
+           ADD W100-LENGTH TO W100-START.
+           MOVE '+' TO W300-LINE (W100-PSUB 2) (W100-START : 1).
+           MOVE '|' TO W300-LINE (W100-PSUB 3) (W100-START : 1).
+           MOVE '+' TO W300-LINE (W100-PSUB 4) (W100-START : 1).
+           MOVE '+' TO W300-LINE (W100-PSUB 60) (W100-START : 1).
+           ADD 1 TO W100-START.
+           MOVE W200-HDR-START (W100-SUB) TO W100-START.
+           MOVE SQLNAMEL (W100-SUB) TO W100-LENGTH.
+           MOVE SQLNAMEC (W100-SUB)
+              TO W300-LINE (W100-PSUB 3) (W100-START : W100-LENGTH).
+           MOVE W100-PSUB TO W100-PREV-PSUB.
+
+       D000-EXIT.
+           EXIT.
+           EJECT
+      *
+       E000-PROCESS-ROWS SECTION.
+           ADD 1 TO W100-ROWNUM.
+           MOVE 1 TO W100-ST-SUB.
+           ADD 1 TO W100-LINE-NO.
+           MOVE 0 TO W100-PREV-PSUB.
+           PERFORM F000-WRITE-REPORT
+              VARYING W100-SUB FROM 1 BY 1
+              UNTIL W100-SUB > SQLD.
+           PERFORM Z500-FETCH.
+           IF W100-LINE-NO > 58
+           OR SQLCODE = 100
+              PERFORM VARYING W100-PSUB FROM 1 BY 1
+                 UNTIL W100-PSUB > W300-NUM-PAGES
+                 PERFORM VARYING W100-SUB2 FROM 1 BY 1
+                    UNTIL W100-SUB2 > W100-LINE-NO
+                    MOVE W300-LINE (W100-PSUB W100-SUB2)
+                       TO FD-PRINT-LINE
+                    IF W100-SUB2 = 1
+                       MOVE '1' TO FD-PRINT-CC
+                    ELSE
+                       MOVE ' ' TO FD-PRINT-CC
+                    END-IF
+                    WRITE FD-PRINT-REC
+                 END-PERFORM
+                 MOVE W300-LINE (W100-PSUB 2)
+                    TO FD-PRINT-LINE
+                 IF W100-SUB2 = 1
+                    MOVE '1' TO FD-PRINT-CC
+                 ELSE
+                    MOVE ' ' TO FD-PRINT-CC
+                 END-IF
+                 WRITE FD-PRINT-REC
+              END-PERFORM
+              MOVE 4 TO W100-LINE-NO
+           END-IF.
+
+       E000-EXIT.
+           EXIT.
+           EJECT
+      *
+      *
+       F000-WRITE-REPORT SECTION.
+
+           MOVE W200-PAGE-NO (W100-SUB) TO W100-PSUB.
+           MOVE SQLTYPE (W100-SUB) TO W100-COL-TYPE.
+           IF W100-PSUB > W100-PREV-PSUB
+              MOVE SPACES TO W300-LINE (W100-PSUB W100-LINE-NO)
+              MOVE W100-ROWNUM TO W100-ROWNUM-DISPLAY
+              MOVE W100-ROWNUM-DISPLAY
+              TO W300-LINE (W100-PSUB W100-LINE-NO) (1 : 6)
+              MOVE '_'
+              TO W300-LINE (W100-PSUB W100-LINE-NO) (7 : 1)
+           END-IF.
+           MOVE W200-DATA-START (W100-SUB) TO W100-START.
+           SUBTRACT 2 FROM W100-START.
+           MOVE '|'
+              TO W300-LINE (W100-PSUB W100-LINE-NO) (W100-START : 1)
+           ADD 2 TO W100-START.
+           MOVE 0 TO W110-NULL.
+           DIVIDE SQLTYPE (W100-SUB) BY 2
+                GIVING W100-DUMMY REMAINDER W100-COLUMN-IND.
+           IF W100-COLUMN-IND > 0
+              MOVE L100-SQL-TEXT (W100-ST-SUB:2) TO
+                   W110-NULL-MOVE
+              ADD 2 TO W100-ST-SUB
+              IF W110-NULL = -1
+                 MOVE '?'
+                 TO W300-LINE (W100-PSUB W100-LINE-NO) (W100-START : 1)
+              END-IF
+           END-IF.
+
+           IF W110-NULL NOT  = -1
+              MOVE W200-DATA-LENGTH (W100-SUB) TO W100-FLEN
+              IF COLTYPE-DATE
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:10)
+                 TO W300-LINE (W100-PSUB W100-LINE-NO) (W100-START :10)
+              ELSE
+              IF COLTYPE-TIME
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:8)
+                 TO W300-LINE (W100-PSUB W100-LINE-NO) (W100-START :8)
+              ELSE
+              IF COLTYPE-TSTMP
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:26)
+                 TO W300-LINE (W100-PSUB W100-LINE-NO) (W100-START:26)
+              ELSE
+              IF COLTYPE-CHAR
+                 IF W100-FLEN > 120
+                    MOVE 120 TO W100-FLEN
+                 END-IF
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:W100-FLEN)
+                 TO W300-LINE (W100-PSUB W100-LINE-NO)
+                              (W100-START:W100-FLEN)
+              ELSE
+              IF COLTYPE-VARCHAR
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:2)
+                         TO W100-FLENR
+                 ADD 2 TO W100-ST-SUB
+                 IF W100-FLEN > 120
+                    MOVE 120 TO W100-FLEN
+                 END-IF
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:W100-FLEN)
+                 TO W300-LINE (W100-PSUB W100-LINE-NO)
+                              (W100-START:W100-FLEN)
+                 SUBTRACT 2 FROM W100-ST-SUB
+              ELSE
+              IF COLTYPE-FLOAT
+                   IF W100-FLEN = 4
+                      MOVE L100-SQL-TEXT (W100-ST-SUB:4)
+                        TO W110-SFLOAT-MOVE
+                      MOVE W110-SFLOAT TO W110-SFLOAT-DISPLAY
+                      MOVE W110-SFLOAT-DISP
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:14)
+                   ELSE
+                      MOVE L100-SQL-TEXT (W100-ST-SUB:8)
+                        TO W110-SFLOAT-MOVE
+                      MOVE W110-SFLOAT TO W110-SFLOAT-DISPLAY
+                      MOVE W110-SFLOAT-DISP
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:22)
+                   END-IF
+              ELSE
+              IF COLTYPE-DECIMAL
+                 MOVE SQLPRECISION (W100-SUB) TO W110-DEC-PL1
+                 MOVE W110-DEC-PLACES TO W110-DEC-LENGTH
+                 MOVE SQLSCALE (W100-SUB) TO W110-DEC-PL1
+                 MOVE W110-DEC-PLACES TO W110-DEC-PLACES2
+                 DIVIDE W110-DEC-LENGTH BY 2 GIVING W100-COL-LEN
+                 ADD 1 TO W100-COL-LEN
+                 SUBTRACT W100-COL-LEN FROM 8 GIVING W100-REM
+                 ADD 1 TO W100-REM
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:W100-COL-LEN)
+                   TO W110-DECIMAL-MOVE (W100-REM:W100-COL-LEN)
+                 SUBTRACT 1 FROM W100-REM
+                 IF W100-REM > 0
+                    MOVE LOW-VALUES
+                       TO W110-DECIMAL-MOVE (1:W100-REM)
+                 END-IF
+                 MOVE W110-DECIMAL TO W110-DECIMAL-DISP
+                 SUBTRACT W110-DEC-LENGTH FROM 15
+                    GIVING W100-REM
+                 ADD 1 TO W100-REM
+                 SUBTRACT W110-DEC-PLACES2
+                   FROM W110-DEC-LENGTH
+                 IF W110-DECIMAL NEGATIVE
+                    MOVE '-'
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:W110-DEC-LENGTH)
+                    ADD 1 TO W100-START
+                 END-IF
+                 MOVE W110-DECIMAL-DISP
+                      (W100-REM:W110-DEC-LENGTH)
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:W110-DEC-LENGTH)
+                 ADD W110-DEC-LENGTH TO W100-START
+                 IF W110-DEC-PLACES2 > 0
+                    MOVE '.'
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:W100-DSTART)
+                    ADD 1 TO W100-START
+                    ADD W110-DEC-LENGTH TO W100-REM
+                    MOVE W110-DECIMAL-DISP
+                          (W100-REM:W110-DEC-PLACES2)
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:W110-DEC-PLACESR)
+                 END-IF
+              ELSE
+              IF COLTYPE-INT
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:4) TO W110-INT-MOVE
+                 MOVE W110-INTEGER TO W110-INT
+                 MOVE W110-INT TO W110-INT-DISPLAY
+                 MOVE W110-INT-DISPLAY
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:9)
+              ELSE
+              IF COLTYPE-SMALLINT
+                 MOVE L100-SQL-TEXT (W100-ST-SUB:2)
+                    TO W110-SMALLINT-MOVE
+                 MOVE W110-SMALLINT TO W110-SINT
+                 MOVE W110-SINT TO W110-SINT-DISPLAY
+                 MOVE W110-SINT-DISPLAY
+                      TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:5)
+           END-IF
+           END-IF
+           END-IF
+           END-IF
+           END-IF
+           END-IF
+           END-IF
+           END-IF
+           END-IF.
+           ADD W200-DATA-LENGTH (W100-SUB) TO W100-ST-SUB.
+           ADD W200-OUT-LENGTH (W100-SUB) TO W100-START.
+           ADD 1 TO W100-START.
+           MOVE '|'   TO W300-LINE (W100-PSUB W100-LINE-NO)
+                                   (W100-START:1)
+           MOVE W100-PSUB TO W100-PREV-PSUB.
+
+       F000-EXIT.
+           EXIT.
+           EJECT
+      *
+      *
+      *
+      *
+       Z500-FETCH SECTION.
+
+      ******************************************************************;
+      * THIS SECTION WILL GIVE THE NEXT ROW BACK FROM A FETCH
+      ******************************************************************,
+
+             EXEC SQLIMS
+                   FETCH DYNAM_CURSOR                                   11230000
+                   USING DESCRIPTOR :SQLDA                              11231000
+             END-EXEC
+             IF SQLCODE < 0
+                DISPLAY 'FETCH ERROR'
+                PERFORM Z999-ERROR
+                GO TO Z500-EXIT
+             END-IF
+
+           IF SQLCODE = +100 AND FIRST-FETCH
+              DISPLAY '*** NO ROWS FOUND ***'
+           ELSE
+           IF SQLCODE > 0 AND SQLCODE NOT = 100
+              DISPLAY '*** WARNING SQLCODE ' SQLCODE ' RETURNED ***'
+           END-IF.
+           MOVE 'N' TO W100-FIRST-FETCH.
+
+       Z500-EXIT.
+           EXIT.
+           EJECT
+       Z999-ERROR SECTION.
+
+      ******************************************************************;
+      * THIS SECTION WILL REPORT THE SQL ERROR *****;
+      ******************************************************************,
+
+
+           MOVE SPACES TO W150-ERROR-MESSAGE.
+           CALL 'DSNTIAR' USING SQLCA
+                                W150-ERROR-MESSAGE
+                                W150-ERR-LEN.
+
+           DISPLAY W150-ERR-MSG-1.
+           DISPLAY W150-ERR-MSG-2.
+           DISPLAY W150-ERR-MSG-3.
+           DISPLAY W150-ERR-MSG-4.
+       Z999-EXIT.
+           EXIT.
